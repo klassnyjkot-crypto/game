@@ -17,18 +17,20 @@
   <canvas id="c"></canvas>
 
 <script>
-/* --- URL сервера для отправки очков --- */
-const SCORE_POST_URL = 'https://tg-game-bot-o4sx.onrender.com/score'; // <- замени на свой Render URL
-/* ------------------------------------ */
+/* --- Настройки: укажи сюда URL сервера (Replit) после деплоя --- */
+const SCORE_POST_URL = 'https://YOUR_REPLIT_URL.repl.co/score'; // <- поменяй на свой Replit URL
+/* ------------------------------------------------------------ */
 
 function getQueryParam(name) {
+  // пробуем и search и hash (Telegram может добавлять параметры в hash)
   const q = (location.search ? location.search : location.hash.split('?').slice(1).join('?'));
   if (!q) return null;
   const params = new URLSearchParams(q);
   return params.get(name);
 }
-const TOKEN = getQueryParam('token') || '';
+const TOKEN = getQueryParam('token') || ''; // бот добавит ?token=XXXX при запуске
 
+// Простейшая flappy-реализация (мини)
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 function fit() {
@@ -48,29 +50,83 @@ const FLAP = -8;
 document.getElementById('btn').addEventListener('click', () => flap());
 document.addEventListener('keydown', e => { if (e.code==='Space') flap(); });
 canvas.addEventListener('touchstart', e => { e.preventDefault(); flap(); }, {passive:false});
-
-function flap(){ 
-  if (!alive) reset(); 
-  bird.vy = FLAP; 
-}
+function flap(){ if (!alive) reset(); bird.vy = FLAP; }
 
 function spawnPipe() {
-  const gap = 120;
+  const gap = 120; // можно уменьшить - сложнее
   const minY = 60, maxY = canvas.height - 60 - gap;
   const y = Math.floor(Math.random()*(maxY-minY))+minY;
   pipes.push({x:canvas.width, yTop: y, gap});
 }
 
 function update(){
-  if (alive) { // обновляем только если птица жива
-    frame++;
-    if (frame % 90 === 0) spawnPipe();
+  frame++;
+  if (frame%90===0) spawnPipe();
+  bird.vy += GRAV;
+  bird.y += bird.vy;
+  // move pipes
+  for (let p of pipes) p.x -= 3 + Math.min(3, Math.floor(score/10));
+  // remove offscreen
+  if (pipes.length && pipes[0].x < -60) pipes.shift(), score++;
+  // collisions
+  for (let p of pipes) {
+    if (bird.x + bird.w > p.x && bird.x < p.x + 50) {
+      if (bird.y < p.yTop || bird.y + bird.h > p.yTop + p.gap) die();
+    }
+  }
+  if (bird.y > canvas.height || bird.y < -50) die();
+}
 
-    bird.vy += GRAV;
-    bird.y += bird.vy;
+function die(){
+  if (!alive) return;
+  alive = false;
+  sendScore(score);
+}
 
-    for (let p of pipes) p.x -= 3 + Math.min(3, Math.floor(score / 10));
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  // background
+  // ground
+  ctx.fillStyle='#4da64d';
+  ctx.fillRect(0, canvas.height-40, canvas.width, 40);
+  // pipes
+  for (let p of pipes) {
+    ctx.fillStyle = '#1d7a1d';
+    // top
+    ctx.fillRect(p.x, 0, 50, p.yTop);
+    // bottom
+    ctx.fillRect(p.x, p.yTop + p.gap, 50, canvas.height - (p.yTop + p.gap) - 40);
+  }
+  // bird (можно заменить на logo)
+  ctx.fillStyle = '#ffcc00';
+  ctx.fillRect(bird.x, bird.y, bird.w, bird.h);
+  document.getElementById('score').innerText = score;
+  if (!alive) {
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = '#fff';
+    ctx.font = '20px sans-serif';
+    ctx.fillText('Game over — tap to play again', 20, canvas.height/2);
+  }
+}
 
-    if (pipes.length && pipes[0].x < -60) {
-      pipes.shift();
-      score++;
+function loop(){ update(); draw(); requestAnimationFrame(loop); }
+function reset(){ bird = { x:80, y:150, vy:0, w:20, h:16 }; pipes=[]; frame=0; score=0; alive=true; }
+
+loop();
+
+async function sendScore(s) {
+  // Попробуем послать очки на сервер; сервер сам запишет их в Telegram через setGameScore
+  try {
+    await fetch(SCORE_POST_URL, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ token: TOKEN, score: s })
+    });
+  } catch (e) {
+    console.warn('Не удалось отправить очки', e);
+  }
+}
+</script>
+</body>
+</html>
