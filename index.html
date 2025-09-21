@@ -109,8 +109,8 @@ function draw(){
     ctx.fillText('Game over — tap to play again', 20, canvas.height/2);
   }
 }
-
-function loop(){ update(); draw(); requestAnimationFrame(loop); }
+let loopId = null
+function loop(){ update(); draw(); if (alive) { loopId = requestAnimationFrame(loop); } else { }}}
 function reset(){ bird = { x:80, y:150, vy:0, w:20, h:16 }; pipes=[]; frame=0; score=0; alive=true; }
 
 loop();
