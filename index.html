@@ -1,7 +1,25 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Mini Flappy</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    html,body { margin:0; padding:0; height:100%; background:#87ceeb; }
+    canvas { display:block; margin:0 auto; background:linear-gradient(#87ceeb,#bfefff); }
+    #overlay { position:fixed; left:10px; top:10px; font-family:sans-serif; color:#fff; font-weight:700; text-shadow:0 1px 0 #000; }
+    #btn { position:fixed; right:10px; top:10px; padding:6px 10px; background:#222; color:#fff; border-radius:6px; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <div id="overlay">Score: <span id="score">0</span></div>
+  <div id="btn">Tap / Click</div>
+  <canvas id="c"></canvas>
+
 <script>
-/* --- Настройки: укажи сюда URL сервера (Replit) после деплоя --- */
-const SCORE_POST_URL = 'https://tg-game-bot-o4sx.onrender.com/score'; // <- поменяй на свой Replit URL
-/* ------------------------------------------------------------ */
+/* --- URL сервера для отправки очков --- */
+const SCORE_POST_URL = 'https://tg-game-bot-o4sx.onrender.com/score'; // <- замени на свой Render URL
+/* ------------------------------------ */
 
 function getQueryParam(name) {
   const q = (location.search ? location.search : location.hash.split('?').slice(1).join('?'));
@@ -44,87 +62,15 @@ function spawnPipe() {
 }
 
 function update(){
-  if (!alive) return; // <-- остановка игры после смерти
+  if (alive) { // обновляем только если птица жива
+    frame++;
+    if (frame % 90 === 0) spawnPipe();
 
-  frame++;
-  if (frame%90===0) spawnPipe();
+    bird.vy += GRAV;
+    bird.y += bird.vy;
 
-  bird.vy += GRAV;
-  bird.y += bird.vy;
+    for (let p of pipes) p.x -= 3 + Math.min(3, Math.floor(score / 10));
 
-  // движение труб
-  for (let p of pipes) p.x -= 3 + Math.min(3, Math.floor(score/10));
-
-  // удаляем трубы и увеличиваем счёт
-  if (pipes.length && pipes[0].x < -60) {
-    pipes.shift();
-    score++;
-  }
-
-  // коллизии
-  for (let p of pipes) {
-    if (bird.x + bird.w > p.x && bird.x < p.x + 50) {
-      if (bird.y < p.yTop || bird.y + bird.h > p.yTop + p.gap) die();
-    }
-  }
-
-  if (bird.y > canvas.height || bird.y < -50) die();
-}
-
-function die(){
-  if (!alive) return;
-  alive = false;
-  sendScore(score);
-}
-
-function draw(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-
-  // фон
-  ctx.fillStyle='#4da64d';
-  ctx.fillRect(0, canvas.height-40, canvas.width, 40);
-
-  // трубы
-  for (let p of pipes) {
-    ctx.fillStyle = '#1d7a1d';
-    ctx.fillRect(p.x, 0, 50, p.yTop);
-    ctx.fillRect(p.x, p.yTop + p.gap, 50, canvas.height - (p.yTop + p.gap) - 40);
-  }
-
-  // птица
-  ctx.fillStyle = '#ffcc00';
-  ctx.fillRect(bird.x, bird.y, bird.w, bird.h);
-
-  document.getElementById('score').innerText = score;
-
-  if (!alive) {
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.fillRect(0,0,canvas.width,canvas.height);
-    ctx.fillStyle = '#fff';
-    ctx.font = '20px sans-serif';
-    ctx.fillText('Game over — tap to play again', 20, canvas.height/2);
-  }
-}
-
-function loop(){ 
-  update(); 
-  draw(); 
-  requestAnimationFrame(loop); 
-}
-
-function reset(){ 
-  bird = { x:80, y:150, vy:0, w:20, h:16 }; 
-  pipes = []; 
-  frame=0; 
-  score=0; 
-  alive=true; 
-}
-
-loop();
-
-async function sendScore(s) {
-  try {
-    await fetch(SCORE_POST_URL, {
-      method:'POST',
-      headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({
+    if (pipes.length && pipes[0].x < -60) {
+      pipes.shift();
+      score++;
