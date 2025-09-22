@@ -2,35 +2,63 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Mini Flappy</title>
+  <title>Mini Flappy — Textures</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     html,body { margin:0; padding:0; height:100%; background:#87ceeb; }
     canvas { display:block; margin:0 auto; background:linear-gradient(#87ceeb,#bfefff); }
     #overlay { position:fixed; left:10px; top:10px; font-family:sans-serif; color:#fff; font-weight:700; text-shadow:0 1px 0 #000; }
     #btn { position:fixed; right:10px; top:10px; padding:6px 10px; background:#222; color:#fff; border-radius:6px; cursor:pointer; }
+    #loading { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); color:#fff; font-family:sans-serif; font-weight:700; text-shadow:0 1px 0 #000; }
   </style>
 </head>
 <body>
   <div id="overlay">Score: <span id="score">0</span></div>
   <div id="btn">Tap / Click</div>
+  <div id="loading">Загрузка текстур...</div>
   <canvas id="c"></canvas>
 
 <script>
-/* --- Настройки: укажи сюда URL сервера (Replit) после деплоя --- */
-const SCORE_POST_URL = 'https://YOUR_REPLIT_URL.repl.co/score'; // <- поменяй на свой Replit URL
-/* ------------------------------------------------------------ */
+/* --- URL сервера для отправки очков --- */
+const SCORE_POST_URL = 'https://tg-game-bot-o4sx.onrender.com/score'; // <- замени на свой Render URL
+/* ------------------------------------ */
 
 function getQueryParam(name) {
-  // пробуем и search и hash (Telegram может добавлять параметры в hash)
   const q = (location.search ? location.search : location.hash.split('?').slice(1).join('?'));
   if (!q) return null;
   const params = new URLSearchParams(q);
   return params.get(name);
 }
-const TOKEN = getQueryParam('token') || ''; // бот добавит ?token=XXXX при запуске
+const TOKEN = getQueryParam('token') || '';
 
-// Простейшая flappy-реализация (мини)
+// ПУТИ К ТЕКСТУРАМ (замени при необходимости)
+const IMG_PATHS = {
+  bird: 'bird.png',    // птичка (PNG с прозрачностью рекомендуется)
+  pipe: 'pipe.png',    // труба/колонна (вертикальный спрайт)
+  bg:   'bg.png',      // задний фон (опционально)
+  ground: 'ground.png' // земля (опционально)
+};
+
+// Загруженные изображения будут здесь
+const IMGS = { bird: null, pipe: null, bg: null, ground: null };
+let imagesReady = false;
+
+function preloadImages() {
+  const keys = Object.keys(IMG_PATHS);
+  let loaded = 0;
+  if (keys.length === 0) { imagesReady = true; document.getElementById('loading').style.display='none'; return; }
+  for (const k of keys) {
+    const path = IMG_PATHS[k];
+    if (!path) { loaded++; if (loaded === keys.length) { imagesReady = true; document.getElementById('loading').style.display='none'; } continue; }
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => { IMGS[k] = img; loaded++; if (loaded === keys.length) { imagesReady = true; document.getElementById('loading').style.display='none'; } };
+    img.onerror = () => { console.warn('Не удалось загрузить:', path); IMGS[k] = null; loaded++; if (loaded === keys.length) { imagesReady = true; document.getElementById('loading').style.display='none'; } };
+    img.src = path;
+  }
+}
+
+// Простейшая flappy-реализация (мини) — адаптированная для текстур
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 function fit() {
@@ -39,14 +67,16 @@ function fit() {
 }
 fit(); window.addEventListener('resize', fit);
 
-let bird = { x:80, y:150, vy:0, w:20, h:16 };
+let bird = { x:80, y:150, vy:0, w:28, h:28 }; // можно менять
 let pipes = [];
 let frame = 0;
 let score = 0;
 let alive = true;
 const GRAV = 0.45;
 const FLAP = -8;
+const PIPE_W = 50; // ширина трубы при отрисовке
 
+// input
 document.getElementById('btn').addEventListener('click', () => flap());
 document.addEventListener('keydown', e => { if (e.code==='Space') flap(); });
 canvas.addEventListener('touchstart', e => { e.preventDefault(); flap(); }, {passive:false});
@@ -60,21 +90,23 @@ function spawnPipe() {
 }
 
 function update(){
-  frame++;
-  if (frame%90===0) spawnPipe();
-  bird.vy += GRAV;
-  bird.y += bird.vy;
-  // move pipes
-  for (let p of pipes) p.x -= 3 + Math.min(3, Math.floor(score/10));
-  // remove offscreen
-  if (pipes.length && pipes[0].x < -60) pipes.shift(), score++;
-  // collisions
-  for (let p of pipes) {
-    if (bird.x + bird.w > p.x && bird.x < p.x + 50) {
-      if (bird.y < p.yTop || bird.y + bird.h > p.yTop + p.gap) die();
+  if (alive) {
+    frame++;
+    if (frame%90===0) spawnPipe();
+    bird.vy += GRAV;
+    bird.y += bird.vy;
+    // move pipes
+    for (let p of pipes) p.x -= 3 + Math.min(3, Math.floor(score/10));
+    // remove offscreen and increase score
+    if (pipes.length && pipes[0].x < -60) { pipes.shift(); score++; }
+    // collisions
+    for (let p of pipes) {
+      if (bird.x + bird.w > p.x && bird.x < p.x + PIPE_W) {
+        if (bird.y < p.yTop || bird.y + bird.h > p.yTop + p.gap) die();
+      }
     }
+    if (bird.y > canvas.height || bird.y < -50) die();
   }
-  if (bird.y > canvas.height || bird.y < -50) die();
 }
 
 function die(){
@@ -83,24 +115,62 @@ function die(){
   sendScore(score);
 }
 
+function drawBackground() {
+  if (imagesReady && IMGS.bg) {
+    ctx.drawImage(IMGS.bg, 0, 0, canvas.width, canvas.height);
+  } else {
+    // fallback — градиент
+    const g = ctx.createLinearGradient(0,0,0,canvas.height);
+    g.addColorStop(0, '#87ceeb');
+    g.addColorStop(1, '#bfefff');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+  }
+}
+
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  // background
+
+  drawBackground();
+
   // ground
-  ctx.fillStyle='#4da64d';
-  ctx.fillRect(0, canvas.height-40, canvas.width, 40);
+  if (imagesReady && IMGS.ground) {
+    ctx.drawImage(IMGS.ground, 0, canvas.height-40, canvas.width, 40);
+  } else {
+    ctx.fillStyle='#4da64d';
+    ctx.fillRect(0, canvas.height-40, canvas.width, 40);
+  }
+
   // pipes
   for (let p of pipes) {
-    ctx.fillStyle = '#1d7a1d';
-    // top
-    ctx.fillRect(p.x, 0, 50, p.yTop);
-    // bottom
-    ctx.fillRect(p.x, p.yTop + p.gap, 50, canvas.height - (p.yTop + p.gap) - 40);
+    if (imagesReady && IMGS.pipe) {
+      // верхняя труба (перевернутая)
+      ctx.save();
+      // нарисуем так, чтобы изображение подходило по ширине PIPE_W
+      ctx.translate(p.x + PIPE_W/2, p.yTop);
+      ctx.scale(1, -1);
+      // рисуем изображение от верхней границы вниз
+      ctx.drawImage(IMGS.pipe, -PIPE_W/2, 0, PIPE_W, canvas.height);
+      ctx.restore();
+      // нижняя труба
+      ctx.drawImage(IMGS.pipe, p.x, p.yTop + p.gap, PIPE_W, canvas.height - (p.yTop + p.gap) - 40);
+    } else {
+      ctx.fillStyle = '#1d7a1d';
+      ctx.fillRect(p.x, 0, PIPE_W, p.yTop);
+      ctx.fillRect(p.x, p.yTop + p.gap, PIPE_W, canvas.height - (p.yTop + p.gap) - 40);
+    }
   }
-  // bird (можно заменить на logo)
-  ctx.fillStyle = '#ffcc00';
-  ctx.fillRect(bird.x, bird.y, bird.w, bird.h);
+
+  // bird
+  if (imagesReady && IMGS.bird) {
+    ctx.drawImage(IMGS.bird, bird.x, bird.y, bird.w, bird.h);
+  } else {
+    ctx.fillStyle = '#ffcc00';
+    ctx.fillRect(bird.x, bird.y, bird.w, bird.h);
+  }
+
   document.getElementById('score').innerText = score;
+
   if (!alive) {
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -111,12 +181,13 @@ function draw(){
 }
 
 function loop(){ update(); draw(); requestAnimationFrame(loop); }
-function reset(){ bird = { x:80, y:150, vy:0, w:20, h:16 }; pipes=[]; frame=0; score=0; alive=true; }
 
+function reset(){ bird = { x:80, y:150, vy:0, w:28, h:28 }; pipes=[]; frame=0; score=0; alive=true; }
+
+preloadImages(); // запускаем загрузку текстур
 loop();
 
 async function sendScore(s) {
-  // Попробуем послать очки на сервер; сервер сам запишет их в Telegram через setGameScore
   try {
     await fetch(SCORE_POST_URL, {
       method:'POST',
