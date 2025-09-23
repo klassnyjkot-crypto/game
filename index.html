@@ -2,24 +2,42 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Mini Flappy — Textures</title>
+  <title>Mini Flappy — Record</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     html,body { margin:0; padding:0; height:100%; background:#87ceeb; }
     canvas { display:block; margin:0 auto; background:linear-gradient(#87ceeb,#bfefff); }
-    #overlay { position:fixed; left:10px; top:10px; font-family:sans-serif; color:#fff; font-weight:700; text-shadow:0 1px 0 #000; }
-    #btn { position:fixed; right:10px; top:10px; padding:6px 10px; background:#222; color:#fff; border-radius:6px; cursor:pointer; }
-    #loading { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); color:#fff; font-family:sans-serif; font-weight:700; text-shadow:0 1px 0 #000; }
+    #overlay {
+      position:fixed; left:10px; top:10px;
+      font-family:sans-serif; color:#fff; font-weight:700;
+      text-shadow:0 1px 0 #000;
+    }
+    #btn {
+      position:fixed; right:10px; top:10px;
+      padding:6px 10px; background:#222; color:#fff;
+      border-radius:6px; cursor:pointer;
+    }
+    #loading {
+      position:fixed; left:50%; top:50%;
+      transform:translate(-50%,-50%);
+      color:#fff; font-family:sans-serif; font-weight:700;
+      text-shadow:0 1px 0 #000;
+    }
   </style>
 </head>
 <body>
-  <div id="overlay">Score: <span id="score">0</span></div>
+  <div id="overlay">
+    Score: <span id="score">0</span> |
+    Best: <span id="best">0</span>
+  </div>
   <div id="btn">Tap / Click</div>
   <div id="loading">Загрузка текстур...</div>
   <canvas id="c"></canvas>
 
 <script>
+/* --- URL сервера для отправки --- */
 const SCORE_POST_URL = 'https://tg-game-bot-o4sx.onrender.com/score';
+/* -------------------------------- */
 
 function getQueryParam(name) {
   const q = (location.search ? location.search : location.hash.split('?').slice(1).join('?'));
@@ -48,11 +66,12 @@ function preloadImages() {
     if (!path) { loaded++; if (loaded === keys.length) { imagesReady = true; document.getElementById('loading').style.display='none'; } continue; }
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    img.onload = () => { IMGS[k] = img; loaded++; if (loaded === keys.length) { imagesReady = true; document.getElementById('loading').style.display='none'; } };
-    img.onerror = () => { console.warn('Не удалось загрузить:', path); IMGS[k] = null; loaded++; if (loaded === keys.length) { imagesReady = true; document.getElementById('loading').style.display='none'; } };
+    img.onload = () => { IMGS[k] = img; loaded++; if (loaded === keys.length) ready(); };
+    img.onerror = () => { console.warn('Не удалось загрузить:', path); IMGS[k] = null; loaded++; if (loaded === keys.length) ready(); };
     img.src = path;
   }
 }
+function ready(){ imagesReady = true; document.getElementById('loading').style.display='none'; }
 
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
@@ -70,6 +89,10 @@ let alive = true;
 const GRAV = 0.45;
 const FLAP = -8;
 const PIPE_W = 50;
+
+// рекорд (сохраняется локально)
+let bestScore = Number(localStorage.getItem('bestScore') || 0);
+document.getElementById('best').innerText = bestScore;
 
 document.getElementById('btn').addEventListener('click', () => flap());
 document.addEventListener('keydown', e => { if (e.code==='Space') flap(); });
@@ -103,7 +126,16 @@ function update(){
 function die(){
   if (!alive) return;
   alive = false;
-  sendScore(score);
+
+  // обновляем рекорд, если побит
+  if (score > bestScore) {
+    bestScore = score;
+    localStorage.setItem('bestScore', bestScore);
+    document.getElementById('best').innerText = bestScore;
+    sendRecord(bestScore); // отправляем только новый рекорд
+  }
+
+  sendScore(score); // можно оставить для статистики
 }
 
 function drawBackground() {
@@ -158,25 +190,28 @@ function draw(){
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.fillRect(0,0,canvas.width,canvas.height);
 
-    // --- новый блок ---
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    // выводим результат над надписью
+    // результат
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 36px sans-serif';
     ctx.fillText('Ваш результат: ' + score, canvas.width / 2, canvas.height / 2 - 80);
 
+    // рекорд
+    ctx.fillStyle = '#00ff00';
+    ctx.font = 'bold 32px sans-serif';
+    ctx.fillText('Рекорд: ' + bestScore, canvas.width / 2, canvas.height / 2 - 40);
+
     // надпись GAME OVER
     ctx.fillStyle = 'red';
     ctx.font = 'bold 48px sans-serif';
-    ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
+    ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 + 10);
 
     // подсказка
     ctx.fillStyle = '#fff';
     ctx.font = '20px sans-serif';
-    ctx.fillText('Tap / Click to play again', canvas.width / 2, canvas.height / 2 + 40);
-    // -------------------
+    ctx.fillText('Tap / Click to play again', canvas.width / 2, canvas.height / 2 + 60);
   }
 }
 
@@ -187,6 +222,7 @@ function reset(){ bird = { x:80, y:150, vy:0, w:28, h:28 }; pipes=[]; frame=0; s
 preloadImages();
 loop();
 
+// отправка текущего счёта (для статистики)
 async function sendScore(s) {
   try {
     await fetch(SCORE_POST_URL, {
@@ -196,6 +232,19 @@ async function sendScore(s) {
     });
   } catch (e) {
     console.warn('Не удалось отправить очки', e);
+  }
+}
+
+// отправка рекорда (только если побит)
+async function sendRecord(r) {
+  try {
+    await fetch(SCORE_POST_URL + '/record', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ token: TOKEN, record: r })
+    });
+  } catch (e) {
+    console.warn('Не удалось отправить рекорд', e);
   }
 }
 </script>
