@@ -2,42 +2,26 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Mini Flappy — Record</title>
+  <title>Mini Flappy — Dynamic Difficulty</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     html,body { margin:0; padding:0; height:100%; background:#87ceeb; }
     canvas { display:block; margin:0 auto; background:linear-gradient(#87ceeb,#bfefff); }
-    #overlay {
-      position:fixed; left:10px; top:10px;
-      font-family:sans-serif; color:#fff; font-weight:700;
-      text-shadow:0 1px 0 #000;
-    }
-    #btn {
-      position:fixed; right:10px; top:10px;
-      padding:6px 10px; background:#222; color:#fff;
-      border-radius:6px; cursor:pointer;
-    }
-    #loading {
-      position:fixed; left:50%; top:50%;
-      transform:translate(-50%,-50%);
-      color:#fff; font-family:sans-serif; font-weight:700;
-      text-shadow:0 1px 0 #000;
-    }
+    #overlay { position:fixed; left:10px; top:10px; font-family:sans-serif; color:#fff; font-weight:700; text-shadow:0 1px 0 #000; }
+    #btn { position:fixed; right:10px; top:10px; padding:6px 10px; background:#222; color:#fff; border-radius:6px; cursor:pointer; }
+    #loading { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); color:#fff; font-family:sans-serif; font-weight:700; text-shadow:0 1px 0 #000; }
   </style>
 </head>
 <body>
-  <div id="overlay">
-    Score: <span id="score">0</span> |
-    Best: <span id="best">0</span>
-  </div>
+  <div id="overlay">Score: <span id="score">0</span> | Best: <span id="best">0</span></div>
   <div id="btn">Tap / Click</div>
   <div id="loading">Загрузка текстур...</div>
   <canvas id="c"></canvas>
 
 <script>
-/* --- URL сервера для отправки --- */
+/* --- URL сервера для отправки очков --- */
 const SCORE_POST_URL = 'https://tg-game-bot-o4sx.onrender.com/score';
-/* -------------------------------- */
+/* ------------------------------------ */
 
 function getQueryParam(name) {
   const q = (location.search ? location.search : location.hash.split('?').slice(1).join('?'));
@@ -66,12 +50,21 @@ function preloadImages() {
     if (!path) { loaded++; if (loaded === keys.length) { imagesReady = true; document.getElementById('loading').style.display='none'; } continue; }
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    img.onload = () => { IMGS[k] = img; loaded++; if (loaded === keys.length) ready(); };
-    img.onerror = () => { console.warn('Не удалось загрузить:', path); IMGS[k] = null; loaded++; if (loaded === keys.length) ready(); };
+    img.onload = () => { IMGS[k] = img; loaded++; if (loaded === keys.length) { imagesReady = true; document.getElementById('loading').style.display='none'; } };
+    img.onerror = () => { console.warn('Не удалось загрузить:', path); IMGS[k] = null; loaded++; if (loaded === keys.length) { imagesReady = true; document.getElementById('loading').style.display='none'; } };
     img.src = path;
   }
 }
-function ready(){ imagesReady = true; document.getElementById('loading').style.display='none'; }
+
+// === Настройки сложности ===
+const GRAV_BASE = 0.45;   // начальная гравитация
+const GRAV_MAX  = 0.70;   // гравитация при 100 очках
+const FLAP = -8;
+const PIPE_W = 50;
+const GAP_START = 140;    // стартовый разрыв
+const GAP_MIN   = 70;     // минимальный разрыв
+const SPEED_START = 3;    // стартовая скорость труб
+const SPEED_MAX   = 8;    // скорость при 100 очках
 
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
@@ -81,18 +74,18 @@ function fit() {
 }
 fit(); window.addEventListener('resize', fit);
 
-let bird = { x:80, y:150, vy:0, w:28, h:28 };
-let pipes = [];
-let frame = 0;
-let score = 0;
-let alive = true;
-const GRAV = 0.45;
-const FLAP = -8;
-const PIPE_W = 50;
-
-// рекорд (сохраняется локально)
+let bird, pipes, frame, score, alive;
 let bestScore = Number(localStorage.getItem('bestScore') || 0);
 document.getElementById('best').innerText = bestScore;
+
+function reset(){
+  bird = { x:80, y:150, vy:0, w:28, h:28 };
+  pipes = [];
+  frame = 0;
+  score = 0;
+  alive = true;
+}
+reset();
 
 document.getElementById('btn').addEventListener('click', () => flap());
 document.addEventListener('keydown', e => { if (e.code==='Space') flap(); });
@@ -100,20 +93,29 @@ canvas.addEventListener('touchstart', e => { e.preventDefault(); flap(); }, {pas
 function flap(){ if (!alive) reset(); bird.vy = FLAP; }
 
 function spawnPipe() {
-  const gap = 120;
+  const progress = Math.min(score/100, 1); // 0..1
+  const gap = GAP_START - (GAP_START - GAP_MIN) * progress;
   const minY = 60, maxY = canvas.height - 60 - gap;
-  const y = Math.floor(Math.random()*(maxY-minY))+minY;
+  const y = Math.floor(Math.random() * (maxY - minY)) + minY;
   pipes.push({x:canvas.width, yTop: y, gap});
 }
 
 function update(){
   if (alive) {
     frame++;
-    if (frame%90===0) spawnPipe();
-    bird.vy += GRAV;
+    if (frame % 90 === 0) spawnPipe();
+
+    const progress = Math.min(score/100, 1);
+    const gravity = GRAV_BASE + (GRAV_MAX - GRAV_BASE) * progress;
+
+    bird.vy += gravity;
     bird.y += bird.vy;
-    for (let p of pipes) p.x -= 3 + Math.min(3, Math.floor(score/10));
+
+    const speed = SPEED_START + (SPEED_MAX - SPEED_START) * progress;
+    for (let p of pipes) p.x -= speed;
+
     if (pipes.length && pipes[0].x < -60) { pipes.shift(); score++; }
+
     for (let p of pipes) {
       if (bird.x + bird.w > p.x && bird.x < p.x + PIPE_W) {
         if (bird.y < p.yTop || bird.y + bird.h > p.yTop + p.gap) die();
@@ -126,16 +128,12 @@ function update(){
 function die(){
   if (!alive) return;
   alive = false;
-
-  // обновляем рекорд, если побит
   if (score > bestScore) {
     bestScore = score;
     localStorage.setItem('bestScore', bestScore);
-    document.getElementById('best').innerText = bestScore;
-    sendRecord(bestScore); // отправляем только новый рекорд
+    sendRecord(bestScore);
   }
-
-  sendScore(score); // можно оставить для статистики
+  sendScore(score);
 }
 
 function drawBackground() {
@@ -185,44 +183,32 @@ function draw(){
   }
 
   document.getElementById('score').innerText = score;
+  document.getElementById('best').innerText = bestScore;
 
   if (!alive) {
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.fillRect(0,0,canvas.width,canvas.height);
 
+    ctx.fillStyle = 'white';
+    ctx.font = '28px sans-serif';
     ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+    ctx.fillText('Score: ' + score, canvas.width/2, canvas.height/2 - 60);
 
-    // результат
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 36px sans-serif';
-    ctx.fillText('Ваш результат: ' + score, canvas.width / 2, canvas.height / 2 - 80);
-
-    // рекорд
-    ctx.fillStyle = '#00ff00';
-    ctx.font = 'bold 32px sans-serif';
-    ctx.fillText('Рекорд: ' + bestScore, canvas.width / 2, canvas.height / 2 - 40);
-
-    // надпись GAME OVER
     ctx.fillStyle = 'red';
     ctx.font = 'bold 48px sans-serif';
-    ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 + 10);
+    ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2 - 10);
 
-    // подсказка
     ctx.fillStyle = '#fff';
     ctx.font = '20px sans-serif';
-    ctx.fillText('Tap / Click to play again', canvas.width / 2, canvas.height / 2 + 60);
+    ctx.fillText('Tap / Click to play again', canvas.width/2, canvas.height/2 + 30);
   }
 }
 
 function loop(){ update(); draw(); requestAnimationFrame(loop); }
 
-function reset(){ bird = { x:80, y:150, vy:0, w:28, h:28 }; pipes=[]; frame=0; score=0; alive=true; }
-
 preloadImages();
 loop();
 
-// отправка текущего счёта (для статистики)
 async function sendScore(s) {
   try {
     await fetch(SCORE_POST_URL, {
@@ -235,7 +221,6 @@ async function sendScore(s) {
   }
 }
 
-// отправка рекорда (только если побит)
 async function sendRecord(r) {
   try {
     await fetch(SCORE_POST_URL + '/record', {
