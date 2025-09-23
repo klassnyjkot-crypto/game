@@ -31,15 +31,13 @@ function getQueryParam(name) {
 }
 const TOKEN = getQueryParam('token') || '';
 
-// ПУТИ К ТЕКСТУРАМ (замени при необходимости)
 const IMG_PATHS = {
-  bird: 'bird.png',    // птичка (PNG с прозрачностью рекомендуется)
-  pipe: 'pipe.png',    // труба/колонна (вертикальный спрайт)
-  bg:   'bg.png',      // задний фон (опционально)
-  ground: 'ground.png' // земля (опционально)
+  bird: 'bird.png',
+  pipe: 'pipe.png',
+  bg:   'bg.png',
+  ground: 'ground.png'
 };
 
-// Загруженные изображения будут здесь
 const IMGS = { bird: null, pipe: null, bg: null, ground: null };
 let imagesReady = false;
 
@@ -58,7 +56,6 @@ function preloadImages() {
   }
 }
 
-// Простейшая flappy-реализация (мини) — адаптированная для текстур
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 function fit() {
@@ -67,23 +64,22 @@ function fit() {
 }
 fit(); window.addEventListener('resize', fit);
 
-let bird = { x:80, y:150, vy:0, w:28, h:28 }; // можно менять
+let bird = { x:80, y:150, vy:0, w:28, h:28 };
 let pipes = [];
 let frame = 0;
 let score = 0;
 let alive = true;
 const GRAV = 0.45;
 const FLAP = -8;
-const PIPE_W = 50; // ширина трубы при отрисовке
+const PIPE_W = 50;
 
-// input
 document.getElementById('btn').addEventListener('click', () => flap());
 document.addEventListener('keydown', e => { if (e.code==='Space') flap(); });
 canvas.addEventListener('touchstart', e => { e.preventDefault(); flap(); }, {passive:false});
 function flap(){ if (!alive) reset(); bird.vy = FLAP; }
 
 function spawnPipe() {
-  const gap = 120; // можно уменьшить - сложнее
+  const gap = 120;
   const minY = 60, maxY = canvas.height - 60 - gap;
   const y = Math.floor(Math.random()*(maxY-minY))+minY;
   pipes.push({x:canvas.width, yTop: y, gap});
@@ -95,11 +91,8 @@ function update(){
     if (frame%90===0) spawnPipe();
     bird.vy += GRAV;
     bird.y += bird.vy;
-    // move pipes
     for (let p of pipes) p.x -= 3 + Math.min(3, Math.floor(score/10));
-    // remove offscreen and increase score
     if (pipes.length && pipes[0].x < -60) { pipes.shift(); score++; }
-    // collisions
     for (let p of pipes) {
       if (bird.x + bird.w > p.x && bird.x < p.x + PIPE_W) {
         if (bird.y < p.yTop || bird.y + bird.h > p.yTop + p.gap) die();
@@ -119,7 +112,6 @@ function drawBackground() {
   if (imagesReady && IMGS.bg) {
     ctx.drawImage(IMGS.bg, 0, 0, canvas.width, canvas.height);
   } else {
-    // fallback — градиент
     const g = ctx.createLinearGradient(0,0,0,canvas.height);
     g.addColorStop(0, '#87ceeb');
     g.addColorStop(1, '#bfefff');
@@ -133,7 +125,6 @@ function draw(){
 
   drawBackground();
 
-  // ground
   if (imagesReady && IMGS.ground) {
     ctx.drawImage(IMGS.ground, 0, canvas.height-40, canvas.width, 40);
   } else {
@@ -141,18 +132,13 @@ function draw(){
     ctx.fillRect(0, canvas.height-40, canvas.width, 40);
   }
 
-  // pipes
   for (let p of pipes) {
     if (imagesReady && IMGS.pipe) {
-      // верхняя труба (перевернутая)
       ctx.save();
-      // нарисуем так, чтобы изображение подходило по ширине PIPE_W
       ctx.translate(p.x + PIPE_W/2, p.yTop);
       ctx.scale(1, -1);
-      // рисуем изображение от верхней границы вниз
       ctx.drawImage(IMGS.pipe, -PIPE_W/2, 0, PIPE_W, canvas.height);
       ctx.restore();
-      // нижняя труба
       ctx.drawImage(IMGS.pipe, p.x, p.yTop + p.gap, PIPE_W, canvas.height - (p.yTop + p.gap) - 40);
     } else {
       ctx.fillStyle = '#1d7a1d';
@@ -161,7 +147,6 @@ function draw(){
     }
   }
 
-  // bird
   if (imagesReady && IMGS.bird) {
     ctx.drawImage(IMGS.bird, bird.x, bird.y, bird.w, bird.h);
   } else {
@@ -174,9 +159,18 @@ function draw(){
   if (!alive) {
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    // --- НОВЫЙ БЛОК НАДПИСИ ---
+    ctx.fillStyle = 'red';
+    ctx.font = 'bold 48px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 30);
+
     ctx.fillStyle = '#fff';
     ctx.font = '20px sans-serif';
-    ctx.fillText('Game over — tap to play again', 20, canvas.height/2);
+    ctx.fillText('Tap / Click to play again', canvas.width / 2, canvas.height / 2 + 20);
+    // -------------------------
   }
 }
 
@@ -184,7 +178,7 @@ function loop(){ update(); draw(); requestAnimationFrame(loop); }
 
 function reset(){ bird = { x:80, y:150, vy:0, w:28, h:28 }; pipes=[]; frame=0; score=0; alive=true; }
 
-preloadImages(); // запускаем загрузку текстур
+preloadImages();
 loop();
 
 async function sendScore(s) {
