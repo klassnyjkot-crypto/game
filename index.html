@@ -19,9 +19,7 @@
   <canvas id="c"></canvas>
 
 <script>
-/* --- URL сервера для отправки очков --- */
-const SCORE_POST_URL = 'https://tg-game-bot-o4sx.onrender.com/score'; // <- замени на свой Render URL
-/* ------------------------------------ */
+const SCORE_POST_URL = 'https://tg-game-bot-o4sx.onrender.com/score';
 
 function getQueryParam(name) {
   const q = (location.search ? location.search : location.hash.split('?').slice(1).join('?'));
@@ -160,17 +158,25 @@ function draw(){
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.fillRect(0,0,canvas.width,canvas.height);
 
-    // --- НОВЫЙ БЛОК НАДПИСИ ---
-    ctx.fillStyle = 'red';
-    ctx.font = 'bold 48px sans-serif';
+    // --- новый блок ---
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 30);
 
+    // выводим результат над надписью
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 36px sans-serif';
+    ctx.fillText('Ваш результат: ' + score, canvas.width / 2, canvas.height / 2 - 80);
+
+    // надпись GAME OVER
+    ctx.fillStyle = 'red';
+    ctx.font = 'bold 48px sans-serif';
+    ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
+
+    // подсказка
     ctx.fillStyle = '#fff';
     ctx.font = '20px sans-serif';
-    ctx.fillText('Tap / Click to play again', canvas.width / 2, canvas.height / 2 + 20);
-    // -------------------------
+    ctx.fillText('Tap / Click to play again', canvas.width / 2, canvas.height / 2 + 40);
+    // -------------------
   }
 }
 
