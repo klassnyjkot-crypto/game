@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Mini Flappy — Dynamic Difficulty</title>
+  <title>Mini Flappy — Dynamic Difficulty + Record</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     html,body { margin:0; padding:0; height:100%; background:#87ceeb; }
@@ -189,18 +189,27 @@ function draw(){
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.fillRect(0,0,canvas.width,canvas.height);
 
+    ctx.textAlign = 'center';
+
+    // Белый текущий результат
     ctx.fillStyle = 'white';
     ctx.font = '28px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('Score: ' + score, canvas.width/2, canvas.height/2 - 60);
+    ctx.fillText('Score: ' + score, canvas.width/2, canvas.height/2 - 90);
 
+    // ✅ Зелёный рекорд
+    ctx.fillStyle = 'limegreen';
+    ctx.font = '26px sans-serif';
+    ctx.fillText('Best: ' + bestScore, canvas.width/2, canvas.height/2 - 50);
+
+    // Красный GAME OVER
     ctx.fillStyle = 'red';
     ctx.font = 'bold 48px sans-serif';
-    ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2 - 10);
+    ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2);
 
+    // Подсказка
     ctx.fillStyle = '#fff';
     ctx.font = '20px sans-serif';
-    ctx.fillText('Tap / Click to play again', canvas.width/2, canvas.height/2 + 30);
+    ctx.fillText('Tap / Click to play again', canvas.width/2, canvas.height/2 + 40);
   }
 }
 
